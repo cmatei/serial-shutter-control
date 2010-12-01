@@ -1,0 +1,41 @@
+
+Serial shutter control
+======================
+
+This tool allows some automation for astrophotography with a DSLR
+camera, by triggering the shutter using a control pin of a serial
+port.
+
+Usage: ssc [options] [time in seconds]
+
+  -s  serial port to use       [default: /dev/ttyS0]
+  -c  number of exposures      [default: 1]
+  -t  exposure time in seconds [default: 1]
+  -p  pause in seconds         [default: 5]
+  -m  MLU number of pulses     [default: 2]
+  -M  MLU delay in miliseconds [default: 2000]
+  -S  min shutter in milisec   [default: 200]
+  -d  PHD dither amount (1..5) [default: 0]
+  -P  PHD host:port            [default: localhost:4300]
+  -q  quiet operation
+  -h  this help summary
+
+
+Mirror lockup - some cameras expect one shutter press to raise the
+mirror, and another to trigger the exposure, like the Canon
+400D. Others, like my old Konica-Minolta 5D will start a timer when
+the shutter is pressed, then expose. Use whatever is appropriate for
+yours (MLU number of pulses, MLU delay).
+
+PHD dither - If you're using PHD or OpenPHD for auto-guiding, you can
+dither between exposures if you enable the PHD server. OpenPHD is here:
+http://code.google.com/p/open-phd-guiding/
+
+Interfacing - I'm using something not unlike the interface described
+here: http://www.covingtoninnovations.com/dslr/CanonRelease.html
+
+I would however suggest you use two optocouplers (or similar) rather
+than connecting the focus and exposure wires directly. That has the
+annoying effect that when you press the shutter halfway on the camera
+(to get out of review mode, for instance), it will also trigger an
+exposure.
