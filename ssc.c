@@ -7,6 +7,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <time.h>
 #include <netdb.h>
 #include <signal.h>
 #include <errno.h>
@@ -24,6 +26,9 @@ static char *phd_host = "localhost";
 static int   phd_port = 4300;
 static int   phd_fd = -1;
 
+static char *log_target = NULL;
+static struct timeval exp_start, exp_end;
+
 /* MLU method:
 
    1 - one pulse, cameras that lock the mirror on the short self-timer.
@@ -37,6 +42,8 @@ static int mlu_delay = 2000;	          /* delay from mirror lockup to exposure *
 static int shut_min_pulse = 200;          /* minimum duration for shutter pulse */
 
 static int quiet = 0;                     /* disable progress bar and other output */
+
+static int exposing = 0;
 
 #define VBUF_LEN 1024
 static char verbose[VBUF_LEN];
@@ -77,6 +84,7 @@ static void usage()
 		"  -S  min shutter in milisec   [default: %u]\n"
 		"  -d  PHD dither amount (1..5) [default: %u]\n"
 		"  -P  PHD host:port            [default: %s:%d]\n"
+		"  -l  log object description"
 		"  -q  quiet operation\n"
 		"  -h  this help summary\n"
 		"\n",
@@ -86,7 +94,34 @@ static void usage()
 }
 
 
+static void log_exposure()
+{
+	FILE *f;
+	static char fname[32];
+	struct tm *t;
+	struct timeval delta;
 
+	if (!log_target)
+		return;
+
+	t = gmtime(&exp_start.tv_sec);
+	snprintf(fname, 32, "ssc-%4d%02d%02d.log",
+		 1900 + t->tm_year, t->tm_mon + 1, t->tm_mday);
+
+	if ((f = fopen(fname, "a")) == NULL)
+		return;
+
+	timersub(&exp_end, &exp_start, &delta);
+
+	fprintf(f, "%s, %02d:%02d:%02d, %lu seconds, %lu.%06lu, %lu.%06lu\n",
+		log_target,
+		t->tm_hour, t->tm_min, t->tm_sec,
+		delta.tv_sec + (delta.tv_usec + 500000) / 1000000,
+		exp_start.tv_sec, exp_start.tv_usec,
+		exp_end.tv_sec, exp_end.tv_usec);
+
+	fclose(f);
+}
 
 
 static void expose(unsigned int msec)
@@ -96,7 +131,12 @@ static void expose(unsigned int msec)
 		shutter_fire();
 
 		sleep_quiet(mlu_delay);
+
+		gettimeofday(&exp_start, NULL);
+		exposing = 1;
 		sleep_verbose(exp_time);
+		exposing = 0;
+		gettimeofday(&exp_end, NULL);
 
 		shutter_release();
 		break;
@@ -109,7 +149,13 @@ static void expose(unsigned int msec)
 		sleep_quiet(mlu_delay);
 
 		shutter_fire();
+
+		gettimeofday(&exp_start, NULL);
+		exposing = 1;
 		sleep_verbose(exp_time);
+		exposing = 0;
+		gettimeofday(&exp_end, NULL);
+
 		shutter_release();
 		break;
 	default:
@@ -125,7 +171,7 @@ int main(int argc, char **argv)
 
 	verbose[0] = 0;
 
-	while ((c = getopt(argc, argv, "c:t:p:m:M:S:qhP:d:")) != -1) {
+	while ((c = getopt(argc, argv, "c:t:p:m:M:S:qhP:d:l:")) != -1) {
 		switch (c) {
 		case 's':
 			serial_port = strdup(optarg);
@@ -165,6 +211,10 @@ int main(int argc, char **argv)
 			}
 			break;
 
+		case 'l':
+			log_target = strdup(optarg);
+			break;
+
 		case 'h':
 		default:
 			usage();
@@ -191,13 +241,15 @@ int main(int argc, char **argv)
 
 			phd_dither();
 		}
-			
+
 		snprintf(verbose, VBUF_LEN, "Exposure %u/%u", i, exp_count);
 
 		if (i != 1)
 			sleep_quiet(exp_pause);
 
 		expose(exp_time);
+
+		log_exposure();
 	}
 
 	phd_disconnect();
@@ -232,6 +284,12 @@ static void shutter_release()
 static void exit_cleanup(int dummy)
 {
 	shutter_release();
+
+	if (exposing) {
+		exposing = 0;
+		gettimeofday(&exp_end, NULL);
+		log_exposure();
+	}
 	close(fd);
 	exit(0);
 }

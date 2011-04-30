@@ -17,6 +17,7 @@ Usage: ssc [options] [time in seconds]
   -S  min shutter in milisec   [default: 200]
   -d  PHD dither amount (1..5) [default: 0]
   -P  PHD host:port            [default: localhost:4300]
+  -l  log object description
   -q  quiet operation
   -h  this help summary
 
@@ -39,3 +40,12 @@ than connecting the focus and exposure wires directly. That has the
 annoying effect that when you press the shutter halfway on the camera
 (to get out of review mode, for instance), it will also trigger an
 exposure.
+
+The log option is suitable for keeping a journal of the exposures,
+with the object name/description and exposure start/stop times.
+
+Example: ssc -l "Leo triplet" -d 2 -c 12 -p 30 300
+
+Takes 12 5-minute exposures, dithering by up to 2 pixels between them
+and allowing 30 seconds for the mount to stabilize. Logs the exact
+times with the "Leo triplet" label.
